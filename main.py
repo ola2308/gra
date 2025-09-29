@@ -72,14 +72,28 @@ class ElixirGame:
         self.showing_error = False
         self.error_start_time = 0
         
-        # Pozycje składników (dostosuj do swojego layoutu)
+        # Pozycje składników - POWIĘKSZONE I DOPASOWANE
+        # Format: (x, y, szerokość, wysokość)
+        # Rozmiar: 100x100 pikseli
+        
         self.ingredient_positions = {
-            "swietlisty_krag": (150, 200, 120, 120),
-            "pazur_smoka": (300, 200, 120, 120),
-            "luska_syreny": (450, 200, 120, 120),
-            "kropla_eliksiru": (150, 350, 120, 120),
-            "skrzydlo_feniksa": (300, 350, 120, 120),
-            "gwiazda_centralna": (450, 350, 120, 120)
+            # Lewo dół - Świetlisty Krąg (w górę i w prawo)
+            "swietlisty_krag": (160, 580, 100, 100),
+            
+            # Lewo środek - Pazur Smoka
+            "pazur_smoka": (280, 400, 100, 100),
+            
+            # Góra lewo - Skrzydło Feniksa
+            "skrzydlo_feniksa": (480, 220, 100, 100),
+            
+            # Góra środek - Kropla Eliksiru (w górę i w prawo)
+            "kropla_eliksiru": (760, 250, 100, 100),
+            
+            # Prawo góra - Gwiazda Centralna
+            "gwiazda_centralna": (940, 340, 100, 100),
+            
+            # Prawo dół - Łuska Syreny (bardziej w lewo)
+            "luska_syreny": (1020, 580, 100, 100)
         }
         
         # Pozycje przycisków (dostosuj do swoich obrazów)
@@ -110,6 +124,12 @@ class ElixirGame:
                 "skrzydlo_feniksa": pygame.image.load("tla/skrzydlo_feniksa.png"),
                 "gwiazda_centralna": pygame.image.load("tla/gwiazda_centralna.png")
             }
+            
+            # Przeskaluj składniki do większego rozmiaru (100x100 pikseli)
+            for key in self.ingredients:
+                self.ingredients[key] = pygame.transform.scale(
+                    self.ingredients[key], (100, 100)
+                )
             
             # Przycisk zagraj ponownie
             self.play_again_button = pygame.image.load("tla/zagraj_ponownie.png")
@@ -187,15 +207,23 @@ class ElixirGame:
         return False
 
     def draw_glow_effect(self, surface, rect, intensity=1.0):
-        """Rysuje efekt podświetlenia wokół prostokąta"""
+        """Rysuje efekt podświetlenia wokół składnika"""
         x, y, w, h = rect
-        glow_color = (255, 255, 100, int(100 * intensity))
         
-        # Tworzymy powierzchnię z alpha
-        glow_surface = pygame.Surface((w + 20, h + 20), pygame.SRCALPHA)
-        pygame.draw.rect(glow_surface, glow_color, (0, 0, w + 20, h + 20), 10)
+        # Oblicz środek składnika
+        center_x = x + w // 2
+        center_y = y + h // 2
         
-        surface.blit(glow_surface, (x - 10, y - 10))
+        # Rysuj kilka koncentrycznych okręgów dla efektu glow
+        for i in range(5, 0, -1):
+            alpha = int(50 * intensity * (i / 5))
+            radius = int((w // 2 + 20) * (1 + i * 0.15))
+            
+            glow_surface = pygame.Surface((radius * 2, radius * 2), pygame.SRCALPHA)
+            color = (255, 255, 150, alpha)
+            pygame.draw.circle(glow_surface, color, (radius, radius), radius)
+            
+            surface.blit(glow_surface, (center_x - radius, center_y - radius))
 
     def start_new_game(self):
         """Rozpoczyna nową grę"""
@@ -376,7 +404,7 @@ class ElixirGame:
                                  (SCREEN_WIDTH - 50, 50), 20)
                 pygame.draw.circle(self.screen, (200, 50, 50), 
                                  (SCREEN_WIDTH - 50, 50), 15)
-
+                # Znak X
                 pygame.draw.line(self.screen, (255, 255, 255), 
                                (SCREEN_WIDTH - 60, 40), (SCREEN_WIDTH - 40, 60), 3)
                 pygame.draw.line(self.screen, (255, 255, 255), 
