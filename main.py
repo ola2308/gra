@@ -5,6 +5,7 @@ import threading
 import time
 import random
 import sys
+import math
 from enum import Enum
 
 # Inicjalizacja Pygame
@@ -72,28 +73,28 @@ class ElixirGame:
         self.showing_error = False
         self.error_start_time = 0
         
-        # Pozycje składników - POWIĘKSZONE I DOPASOWANE
+        # Pozycje składników - POWIĘKSZONE I PRZESUNIĘTE W LEWO
         # Format: (x, y, szerokość, wysokość)
-        # Rozmiar: 100x100 pikseli
+        # Rozmiar: 120x120 pikseli, wszystko przesunięte w lewo
         
         self.ingredient_positions = {
-            # Lewo dół - Świetlisty Krąg (w górę i w prawo)
-            "swietlisty_krag": (160, 580, 100, 100),
+            # Lewo dół - Świetlisty Krąg
+            "swietlisty_krag": (100, 550, 120, 120),
             
             # Lewo środek - Pazur Smoka
-            "pazur_smoka": (280, 400, 100, 100),
+            "pazur_smoka": (220, 370, 120, 120),
             
             # Góra lewo - Skrzydło Feniksa
-            "skrzydlo_feniksa": (480, 220, 100, 100),
+            "skrzydlo_feniksa": (400, 200, 120, 120),
             
-            # Góra środek - Kropla Eliksiru (w górę i w prawo)
-            "kropla_eliksiru": (760, 250, 100, 100),
+            # Góra środek - Kropla Eliksiru
+            "kropla_eliksiru": (680, 230, 120, 120),
             
             # Prawo góra - Gwiazda Centralna
-            "gwiazda_centralna": (940, 340, 100, 100),
+            "gwiazda_centralna": (860, 320, 120, 120),
             
-            # Prawo dół - Łuska Syreny (bardziej w lewo)
-            "luska_syreny": (1020, 580, 100, 100)
+            # Prawo dół - Łuska Syreny
+            "luska_syreny": (940, 550, 120, 120)
         }
         
         # Pozycje przycisków (dostosuj do swoich obrazów)
@@ -125,10 +126,10 @@ class ElixirGame:
                 "gwiazda_centralna": pygame.image.load("tla/gwiazda_centralna.png")
             }
             
-            # Przeskaluj składniki do większego rozmiaru (100x100 pikseli)
+            # Przeskaluj składniki do większego rozmiaru (120x120 pikseli)
             for key in self.ingredients:
                 self.ingredients[key] = pygame.transform.scale(
-                    self.ingredients[key], (100, 100)
+                    self.ingredients[key], (120, 120)
                 )
             
             # Przycisk zagraj ponownie
@@ -189,6 +190,15 @@ class ElixirGame:
             x, y, w, h = rect
             return x <= self.finger_x <= x + w and y <= self.finger_y <= y + h
 
+    def get_hover_progress(self, button_id):
+        """Zwraca postęp hovera (0.0 do 1.0) dla danego przycisku"""
+        if button_id not in self.hover_start_time:
+            return 0.0
+        
+        current_time = time.time()
+        elapsed = current_time - self.hover_start_time[button_id]
+        return min(elapsed / HOVER_TIME, 1.0)
+
     def check_hover_click(self, button_id, rect):
         """Sprawdza czy nastąpiło 'kliknięcie' przez najechanie"""
         current_time = time.time()
@@ -205,6 +215,47 @@ class ElixirGame:
                 del self.hover_start_time[button_id]
         
         return False
+
+    def draw_loading_circle(self, surface, center, progress, radius=50):
+        """Rysuje ładujące się kółko pokazujące postęp najechania
+        progress: 0.0 do 1.0"""
+        cx, cy = center
+        
+        # Tło kółka - ciemne z przezroczystością
+        bg_surface = pygame.Surface((radius * 3, radius * 3), pygame.SRCALPHA)
+        pygame.draw.circle(bg_surface, (0, 0, 0, 120), (radius * 1.5, radius * 1.5), radius)
+        surface.blit(bg_surface, (cx - radius * 1.5, cy - radius * 1.5))
+        
+        # Obwódka zewnętrzna
+        pygame.draw.circle(surface, (100, 255, 100), (cx, cy), radius, 3)
+        
+        # Wypełnienie postępu - rysuj łuk
+        if progress > 0:
+            # Konwertuj postęp na kąt (0-360 stopni)
+            angle = int(progress * 360)
+            
+            # Rysuj łuk postępu
+            points = [(cx, cy)]
+            for i in range(angle + 1):
+                rad = math.radians(i - 90)  # -90 żeby zaczynać od góry
+                x = cx + int((radius - 5) * math.cos(rad))
+                y = cy + int((radius - 5) * math.sin(rad))
+                points.append((x, y))
+            
+            if len(points) > 2:
+                # Rysuj wypełniony sektor
+                glow_surface = pygame.Surface((radius * 3, radius * 3), pygame.SRCALPHA)
+                adjusted_points = [(p[0] - cx + radius * 1.5, p[1] - cy + radius * 1.5) for p in points]
+                pygame.draw.polygon(glow_surface, (100, 255, 100, 180), adjusted_points)
+                surface.blit(glow_surface, (cx - radius * 1.5, cy - radius * 1.5))
+        
+        # Tekst procentowy w środku
+        if progress > 0:
+            percent_text = f"{int(progress * 100)}%"
+            font = pygame.font.Font(None, 32)
+            text_surface = font.render(percent_text, True, (255, 255, 255))
+            text_rect = text_surface.get_rect(center=(cx, cy))
+            surface.blit(text_surface, text_rect)
 
     def draw_glow_effect(self, surface, rect, intensity=1.0):
         """Rysuje efekt podświetlenia wokół składnika"""
@@ -296,7 +347,14 @@ class ElixirGame:
         # Podświetl przycisk START jeśli jest hover
         start_rect = self.button_positions["start"]
         if self.is_hovering(start_rect):
-            self.draw_glow_effect(self.screen, start_rect)
+            self.draw_glow_effect(self.screen, start_rect, 0.8)
+            
+            # Rysuj loading circle
+            progress = self.get_hover_progress("start")
+            if progress > 0:
+                x, y, w, h = start_rect
+                center = (x + w // 2, y + h // 2)
+                self.draw_loading_circle(self.screen, center, progress)
         
         # Sprawdź kliknięcie START
         if self.check_hover_click("start", start_rect):
@@ -309,12 +367,26 @@ class ElixirGame:
         # Podświetl przycisk Łatwy jeśli jest hover
         easy_rect = self.button_positions["easy"]
         if self.is_hovering(easy_rect):
-            self.draw_glow_effect(self.screen, easy_rect)
+            self.draw_glow_effect(self.screen, easy_rect, 0.8)
+            
+            # Rysuj loading circle
+            progress = self.get_hover_progress("easy")
+            if progress > 0:
+                x, y, w, h = easy_rect
+                center = (x + w // 2, y + h // 2)
+                self.draw_loading_circle(self.screen, center, progress)
         
         # Podświetl przycisk Trudny jeśli jest hover
         hard_rect = self.button_positions["hard"]
         if self.is_hovering(hard_rect):
-            self.draw_glow_effect(self.screen, hard_rect)
+            self.draw_glow_effect(self.screen, hard_rect, 0.8)
+            
+            # Rysuj loading circle
+            progress = self.get_hover_progress("hard")
+            if progress > 0:
+                x, y, w, h = hard_rect
+                center = (x + w // 2, y + h // 2)
+                self.draw_loading_circle(self.screen, center, progress)
         
         # Sprawdź kliknięcie Łatwy
         if self.check_hover_click("easy", easy_rect):
@@ -348,6 +420,13 @@ class ElixirGame:
             # Podświetl składnik przy hover (gdy nie ma sekwencji)
             elif not self.sequence_playing and not self.showing_error and self.is_hovering(rect):
                 self.draw_glow_effect(self.screen, rect, 0.7)
+                
+                # Rysuj loading circle dla składników
+                progress = self.get_hover_progress(f"ingredient_{ingredient}")
+                if progress > 0:
+                    x, y, w, h = rect
+                    center = (x + w // 2, y + h // 2)
+                    self.draw_loading_circle(self.screen, center, progress, radius=40)
         
         # Aktualizuj sekwencję
         self.update_sequence()
@@ -368,7 +447,14 @@ class ElixirGame:
         
         # Podświetl przycisk jeśli jest hover
         if self.is_hovering(play_again_rect):
-            self.draw_glow_effect(self.screen, play_again_rect)
+            self.draw_glow_effect(self.screen, play_again_rect, 0.8)
+            
+            # Rysuj loading circle
+            progress = self.get_hover_progress("play_again")
+            if progress > 0:
+                x, y, w, h = play_again_rect
+                center = (x + w // 2, y + h // 2)
+                self.draw_loading_circle(self.screen, center, progress)
         
         # Rysuj przycisk (jeśli masz osobny obraz)
         try:
